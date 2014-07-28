@@ -16,6 +16,30 @@ def dout(obj):
     return pytz.UTC.localize(obj).isoformat()
 
 
+class BlacklistDefaultDict(defaultdict):
+    def __init__(self, *args, blacklist=None, **kwargs):
+        self.blacklist = [] if blacklist is None else blacklist
+        super(BlacklistDefaultDict, self).__init__(*args, **kwargs)
+
+    def __getitem__(self, key, *args, **kwargs):
+        if key in self.blacklist:
+            raise KeyError("No such key: %s" % (key))
+
+        return super(BlacklistDefaultDict, self).__getitem__(
+            key, *args, **kwargs
+        )
+
+    def items(self, *args, **kwargs):
+        for k, v in defaultdict.items(self, *args, **kwargs):
+            if k in self.blacklist:
+                continue
+            yield (k, v)
+
+    def __str__(self, *args, **kwargs):
+        return "BlacklistDefaultDict({})".format(
+            super(BlacklistDefaultDict, self).__str__(*args, **kwargs)
+        )
+
 DIVISION_SERIALIZE = defaultdict(dict)
 SOURCES_SERIALIZE = {"note": {}, "url": {},}
 
@@ -36,6 +60,7 @@ ORGANIZATION_SERIALIZE = defaultdict(dict, [
 ])
 ORGANIZATION_SERIALIZE['parent'] = ORGANIZATION_SERIALIZE
 ORGANIZATION_SERIALIZE['children'] = ORGANIZATION_SERIALIZE
+
 ORGANIZATION_SERIALIZE['identifiers'] = {
     # Don't leak 'id'
     "identifier": {},
@@ -66,7 +91,11 @@ MEMBERSHIP_SERIALIZE = {
     "on_behalf_of": ORGANIZATION_SERIALIZE,
 }
 
-ORGANIZATION_SERIALIZE['memberships'] = MEMBERSHIP_SERIALIZE
+ORGANIZATION_SERIALIZE['memberships'] = BlacklistDefaultDict(
+    dict,
+    MEMBERSHIP_SERIALIZE.items(),
+    blacklist=['organization']
+)
 PERSON_SERIALIZE['memberships'] = MEMBERSHIP_SERIALIZE
 POST_SERIALIZE['memberships'] = MEMBERSHIP_SERIALIZE
 
